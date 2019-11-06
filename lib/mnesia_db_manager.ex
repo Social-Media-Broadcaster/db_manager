@@ -74,7 +74,7 @@ defmodule MnesiaDbManager do
       :mnesia.match_object({table_name, :_, :_})
     end
     case :mnesia.transaction(tran) do
-      {:atomic, items} -> {:ok, items}
+      {:atomic, items} -> {:ok, Enum.map(items, fn {_, _, item} -> item end)}
       error -> {:error, error}
     end
   end
@@ -84,7 +84,7 @@ defmodule MnesiaDbManager do
       :mnesia.match_object({table_name, :_, pattern})
     end
     case :mnesia.transaction(tran) do
-      {:atomic, items} -> {:ok, items}
+      {:atomic, items} -> {:ok, Enum.map(items, fn {_, _, item} -> item end)}
       error -> {:error, error}
     end
   end
