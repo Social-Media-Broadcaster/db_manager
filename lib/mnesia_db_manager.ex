@@ -3,9 +3,12 @@ defmodule MnesiaDbManager do
 
   @counter_table_name :counter_table
 
-  def init(table_name, _options) do
+  def init(_options) do
     :mnesia.create_schema([__MODULE__])
     :mnesia.start()
+  end
+
+  def create_table(table_name) do
     case create_table(table_name, [attributes: [:id, :item]]) do
       {:ok, _} ->
         :mnesia.add_table_index(table_name, :id)
