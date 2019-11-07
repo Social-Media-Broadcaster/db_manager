@@ -17,6 +17,7 @@ defmodule MnesiaDbManager do
 
   def create_table(table_name) do
     case create_table(table_name, [attributes: [:id, :item]]) do
+      {:ok, :already_exists} ->  {:ok}
       {:ok, _} ->
         :mnesia.add_table_index(table_name, :id)
         init_counter(table_name)
@@ -101,16 +102,16 @@ defmodule MnesiaDbManager do
 
   defp create_table(table_name, options) do
     case :mnesia.create_table(table_name, [disc_copies: [node()]] ++ options) do
-      {:atomic, :ok} -> {:ok, []}
+      {:atomic, :ok} -> {:ok, :new}
       {:aborted, {:already_exists, _table_name}} ->
         :mnesia.wait_for_tables([table_name], 5000)
-        {:ok, []}
+        {:ok, :already_exists}
       other -> {:error, other}
     end
   end
 
   defp init_counter(table_name) do
-    create_table(@counter_table_name, [attributes: [table_name, :id]])
+    {:ok, _} = create_table(@counter_table_name, [attributes: [table_name, :id]])
     tran = fn ->
       :mnesia.write({@counter_table_name, table_name, 0})
     end

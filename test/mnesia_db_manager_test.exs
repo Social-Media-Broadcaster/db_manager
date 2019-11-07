@@ -9,45 +9,61 @@ defmodule MnesiaDbManagerTest do
   @test_entity %TestEntity{value: 15, token: "no token"}
 
   test "can be initialized" do
+    init_table()
     assert MnesiaDbManager.init([]) == {:ok}
+    clear_mnesia()
   end
 
   test "can create table" do
+    init_table()
     MnesiaDbManager.init([])
     assert MnesiaDbManager.create_table(TestEntity) == {:ok}
+    clear_mnesia()
   end
 
   test "can create entities" do
+    init_table()
     assert seed_entity() == {:ok, 1}
+    clear_mnesia()
   end
 
   test "can delete entity" do
+    init_table()
     [to_delete | rest] = seed_many()
     assert MnesiaDbManager.delete(TestEntity, to_delete.id) == {:ok}
     assert MnesiaDbManager.get_all(TestEntity) == {:ok, rest}
+    clear_mnesia()
   end
 
   test "can get entity" do
+    init_table()
     {:ok, id} = seed_entity()
     assert MnesiaDbManager.get(TestEntity, id) == {:ok, %{@test_entity | id: id}}
+    clear_mnesia()
   end
 
   test "can update entity" do
+    init_table()
     {:ok, id} = seed_entity()
     {:ok, item} = MnesiaDbManager.get(TestEntity, id)
     assert MnesiaDbManager.update(TestEntity, id, %TestEntity{item | value: 21}) == {:ok}
     assert MnesiaDbManager.get(TestEntity, id) == {:ok, %TestEntity{item | value: 21}}
+    clear_mnesia()
   end
 
   test "can get all entities" do
+    init_table()
     result = seed_many()
     assert MnesiaDbManager.get_all(TestEntity) == {:ok, result}
+    clear_mnesia()
   end
 
   test "can get all by pattern" do
+    init_table()
     result = seed_many()
     filter = fn el -> el.value >= 17 end
     assert MnesiaDbManager.get_all(TestEntity, filter) == {:ok, result |> Enum.filter(filter)}
+    clear_mnesia()
   end
 
   defp seed_many do
@@ -62,9 +78,18 @@ defmodule MnesiaDbManagerTest do
     [item_4, item_3, item_2, item_1]
   end
 
-  defp seed_entity(%TestEntity{} = entity) do
+  defp clear_mnesia do
+    :mnesia.stop()
+    :ok = :mnesia.start()
+    :ok = :mnesia.wait_for_tables([TestEntity], 5000)
+  end
+
+  defp init_table do
     MnesiaDbManager.init([])
     MnesiaDbManager.create_table(TestEntity)
+  end
+
+  defp seed_entity(%TestEntity{} = entity) do
     MnesiaDbManager.create(TestEntity, entity)
   end
 
