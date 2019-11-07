@@ -1,11 +1,18 @@
 defmodule MnesiaDbManager do
+  import Ex2ms
+
   @behaviour DbManager
 
   @counter_table_name :counter_table
 
   def init(_options) do
-    :mnesia.create_schema([__MODULE__])
-    :mnesia.start()
+    case [:mnesia.create_schema([node()]), :mnesia.start()] do
+      [:ok, :ok] -> {:ok}
+      [{:error, {_, {:already_exists, _}}}, :ok] -> {:ok}
+      [{:error, error}, :ok] -> {:error, error}
+      [:ok, {:error, error}] -> {:error, error}
+      [{:error, first}, {:error, second}] -> {:error, [first, second]}
+    end
   end
 
   def create_table(table_name) do
@@ -35,7 +42,7 @@ defmodule MnesiaDbManager do
       _ ->
         tran = fn ->
           :mnesia.delete({table_name, id})
-          :mnesia.write({table_name, id, item})
+          :mnesia.write({table_name, id, %{item | id: id}})
         end
         case :mnesia.transaction(tran) do
           {_, :ok} -> {:ok}
@@ -59,8 +66,9 @@ defmodule MnesiaDbManager do
   end
 
   def get(table_name, id) do
+    filter = fun do {table_name, id, item} when table_name == ^table_name and id == ^id -> item end
     tran = fn ->
-      :mnesia.select(table_name, [{{table_name, :"$1",  :"$2"}, [{:==, :"$1", id}], [:"$2"]}])
+      :mnesia.select(table_name, filter)
     end
     case :mnesia.transaction(tran) do
       {:atomic, [item | _]} -> {:ok, item}
@@ -70,27 +78,29 @@ defmodule MnesiaDbManager do
   end
 
   def get_all(table_name) do
+    filter = fun do {table_name, _id, item} when table_name == ^table_name -> item end
     tran = fn ->
-      :mnesia.match_object({table_name, :_, :_})
+      :mnesia.select(table_name, filter)
     end
     case :mnesia.transaction(tran) do
-      {:atomic, items} -> {:ok, Enum.map(items, fn {_, _, item} -> item end)}
+      {:atomic, items} -> {:ok, items |> Enum.sort(fn item_1, item_2 -> item_1.id > item_2.id end)}
       error -> {:error, error}
     end
   end
 
   def get_all(table_name, pattern) do
+    filter = fun do {table_name, _id, item} when table_name == ^table_name -> item end
     tran = fn ->
-      :mnesia.match_object({table_name, :_, pattern})
+      :mnesia.select(table_name, filter)
     end
     case :mnesia.transaction(tran) do
-      {:atomic, items} -> {:ok, Enum.map(items, fn {_, _, item} -> item end)}
+      {:atomic, items} -> {:ok, items |> Enum.sort(fn item_1, item_2 -> item_1.id > item_2.id end) |> Enum.filter(pattern)}
       error -> {:error, error}
     end
   end
 
   defp create_table(table_name, options) do
-    case :mnesia.create_table(table_name, options) do
+    case :mnesia.create_table(table_name, [disc_copies: [node()]] ++ options) do
       {:atomic, :ok} -> {:ok, []}
       {:aborted, {:already_exists, _table_name}} ->
         :mnesia.wait_for_tables([table_name], 5000)
@@ -105,7 +115,7 @@ defmodule MnesiaDbManager do
       :mnesia.write({@counter_table_name, table_name, 0})
     end
     case :mnesia.transaction(tran) do
-      {:atomic, :ok} -> {:ok, []}
+      {:atomic, :ok} -> {:ok}
       other -> {:error, other}
     end
   end
