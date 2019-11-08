@@ -33,3 +33,6 @@ tags
 # elixir_ls
 **/*/.elixir_ls
 .elixir_ls
+
+# mnesia
+Mnesia.nonode@nohost
