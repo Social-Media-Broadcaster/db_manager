@@ -3,8 +3,6 @@ defmodule MnesiaDbManager do
 
   @behaviour DbManager
 
-  @counter_table_name :counter_table
-
   def init(_options) do
     case [:mnesia.create_schema([node()]), :mnesia.start()] do
       [:ok, :ok] -> {:ok}
@@ -16,20 +14,20 @@ defmodule MnesiaDbManager do
   end
 
   def create_table(table_name) do
-    case create_table(table_name, [attributes: [:id, :item]]) do
+    case create_table(table_name, [attributes: [:id, :item, :updated_at]]) do
       {:ok, :already_exists} ->  {:ok}
       {:ok, _} ->
         :mnesia.add_table_index(table_name, :id)
-        init_counter(table_name)
       error -> error
     end
   end
 
   def create(table_name, item) do
-    id = :mnesia.dirty_update_counter(@counter_table_name, table_name, 1)
+    id = UUID.uuid4
     item_with_id = %{item | id: id}
+    timestamp = DateTime.utc_now() |> DateTime.to_unix(:millisecond)
     tran = fn ->
-      :mnesia.write({table_name, id, item_with_id})
+      :mnesia.write({table_name, id, item_with_id, timestamp})
     end
     case :mnesia.transaction(tran) do
       {_, :ok} -> {:ok, id}
@@ -43,7 +41,8 @@ defmodule MnesiaDbManager do
       _ ->
         tran = fn ->
           :mnesia.delete({table_name, id})
-          :mnesia.write({table_name, id, %{item | id: id}})
+          timestamp = DateTime.utc_now() |> DateTime.to_unix(:millisecond)
+          :mnesia.write({table_name, id, %{item | id: id}, timestamp})
         end
         case :mnesia.transaction(tran) do
           {_, :ok} -> {:ok}
@@ -67,7 +66,7 @@ defmodule MnesiaDbManager do
   end
 
   def get(table_name, id) do
-    filter = fun do {table_name, id, item} when table_name == ^table_name and id == ^id -> item end
+    filter = fun do {table_name, id, item, _updated_at} when table_name == ^table_name and id == ^id -> item end
     tran = fn ->
       :mnesia.select(table_name, filter)
     end
@@ -79,23 +78,25 @@ defmodule MnesiaDbManager do
   end
 
   def get_all(table_name) do
-    filter = fun do {table_name, _id, item} when table_name == ^table_name -> item end
+    filter = fun do {table_name, _id, item, updated_at} when table_name == ^table_name -> {item, updated_at} end
     tran = fn ->
       :mnesia.select(table_name, filter)
     end
     case :mnesia.transaction(tran) do
-      {:atomic, items} -> {:ok, items |> Enum.sort(fn item_1, item_2 -> item_1.id > item_2.id end)}
+      {:atomic, items} -> 
+        {:ok, items |> Enum.sort(fn {_, updated_at_1}, {_, updated_at_2} -> updated_at_1 > updated_at_2 end) |> Enum.map(fn {item, _} -> item end)}
       error -> {:error, error}
     end
   end
 
   def get_all(table_name, pattern) do
-    filter = fun do {table_name, _id, item} when table_name == ^table_name -> item end
+    filter = fun do {table_name, _id, item, updated_at} when table_name == ^table_name -> {item, updated_at} end
     tran = fn ->
       :mnesia.select(table_name, filter)
     end
     case :mnesia.transaction(tran) do
-      {:atomic, items} -> {:ok, items |> Enum.sort(fn item_1, item_2 -> item_1.id > item_2.id end) |> Enum.filter(pattern)}
+      {:atomic, items} ->
+        {:ok, items |> Enum.sort(fn {_, updated_at_1}, {_, updated_at_2}-> updated_at_1 > updated_at_2 end) |> Enum.map(fn {item, _} -> item end) |> Enum.filter(pattern)}
       error -> {:error, error}
     end
   end
@@ -106,17 +107,6 @@ defmodule MnesiaDbManager do
       {:aborted, {:already_exists, _table_name}} ->
         :mnesia.wait_for_tables([table_name], 5000)
         {:ok, :already_exists}
-      other -> {:error, other}
-    end
-  end
-
-  defp init_counter(table_name) do
-    {:ok, _} = create_table(@counter_table_name, [attributes: [table_name, :id]])
-    tran = fn ->
-      :mnesia.write({@counter_table_name, table_name, 0})
-    end
-    case :mnesia.transaction(tran) do
-      {:atomic, :ok} -> {:ok}
       other -> {:error, other}
     end
   end

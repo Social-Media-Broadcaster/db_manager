@@ -8,68 +8,61 @@ defmodule MnesiaDbManagerTest do
 
   @test_entity %TestEntity{value: 15, token: "no token"}
 
-  test "can be initialized" do
+  setup do
     init_table()
+    on_exit(fn -> clear_mnesia() end)
+  end
+
+  test "can be initialized" do
     assert MnesiaDbManager.init([]) == {:ok}
-    clear_mnesia()
   end
 
   test "can create table" do
-    init_table()
     MnesiaDbManager.init([])
     assert MnesiaDbManager.create_table(TestEntity) == {:ok}
-    clear_mnesia()
   end
 
   test "can create entities" do
-    init_table()
-    assert seed_entity() == {:ok, 1}
-    clear_mnesia()
+    send(self(), seed_entity())
+    assert_received {:ok, _}
   end
 
   test "can delete entity" do
-    init_table()
     [to_delete | rest] = seed_many()
     assert MnesiaDbManager.delete(TestEntity, to_delete.id) == {:ok}
     assert MnesiaDbManager.get_all(TestEntity) == {:ok, rest}
-    clear_mnesia()
   end
 
   test "can get entity" do
-    init_table()
     {:ok, id} = seed_entity()
     assert MnesiaDbManager.get(TestEntity, id) == {:ok, %{@test_entity | id: id}}
-    clear_mnesia()
   end
 
   test "can update entity" do
-    init_table()
     {:ok, id} = seed_entity()
     {:ok, item} = MnesiaDbManager.get(TestEntity, id)
     assert MnesiaDbManager.update(TestEntity, id, %TestEntity{item | value: 21}) == {:ok}
     assert MnesiaDbManager.get(TestEntity, id) == {:ok, %TestEntity{item | value: 21}}
-    clear_mnesia()
   end
 
   test "can get all entities" do
-    init_table()
     result = seed_many()
     assert MnesiaDbManager.get_all(TestEntity) == {:ok, result}
-    clear_mnesia()
   end
 
   test "can get all by pattern" do
-    init_table()
     result = seed_many()
     filter = fn el -> el.value >= 17 end
     assert MnesiaDbManager.get_all(TestEntity, filter) == {:ok, result |> Enum.filter(filter)}
-    clear_mnesia()
   end
 
   defp seed_many do
     {:ok, id_1} = seed_entity()
+    :ok = :timer.sleep(300)
     {:ok, id_2} = MnesiaDbManager.create(TestEntity, %TestEntity{@test_entity | value: 16})
+    :ok = :timer.sleep(300)
     {:ok, id_3} = MnesiaDbManager.create(TestEntity, %TestEntity{@test_entity | value: 17})
+    :ok = :timer.sleep(300)
     {:ok, id_4} = MnesiaDbManager.create(TestEntity, %TestEntity{@test_entity | value: 18})
     {:ok, item_1} = MnesiaDbManager.get(TestEntity, id_1)
     {:ok, item_2} = MnesiaDbManager.get(TestEntity, id_2)
@@ -79,9 +72,7 @@ defmodule MnesiaDbManagerTest do
   end
 
   defp clear_mnesia do
-    :mnesia.stop()
-    :ok = :mnesia.start()
-    :ok = :mnesia.wait_for_tables([TestEntity], 5000)
+    :mnesia.clear_table(TestEntity)
   end
 
   defp init_table do
