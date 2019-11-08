@@ -1,6 +1,6 @@
- defmodule TestEntity do
-   defstruct [:value, :token, id: 0]
- end
+defmodule TestEntity do
+  defstruct [:value, :token, id: 0]
+end
 
 defmodule MnesiaDbManagerTest do
   use ExUnit.Case
@@ -14,12 +14,12 @@ defmodule MnesiaDbManagerTest do
   end
 
   test "can be initialized" do
-    assert MnesiaDbManager.init([]) == {:ok}
+    assert MnesiaDbManager.init([]) == :ok
   end
 
   test "can create table" do
     MnesiaDbManager.init([])
-    assert MnesiaDbManager.create_table(TestEntity) == {:ok}
+    assert MnesiaDbManager.create_table(TestEntity) == :ok
   end
 
   test "can create entities" do
@@ -29,7 +29,7 @@ defmodule MnesiaDbManagerTest do
 
   test "can delete entity" do
     [to_delete | rest] = seed_many()
-    assert MnesiaDbManager.delete(TestEntity, to_delete.id) == {:ok}
+    assert MnesiaDbManager.delete(TestEntity, to_delete.id) == :ok
     assert MnesiaDbManager.get_all(TestEntity) == {:ok, rest}
   end
 
@@ -41,7 +41,7 @@ defmodule MnesiaDbManagerTest do
   test "can update entity" do
     {:ok, id} = seed_entity()
     {:ok, item} = MnesiaDbManager.get(TestEntity, id)
-    assert MnesiaDbManager.update(TestEntity, id, %TestEntity{item | value: 21}) == {:ok}
+    assert MnesiaDbManager.update(TestEntity, id, %TestEntity{item | value: 21}) == :ok
     assert MnesiaDbManager.get(TestEntity, id) == {:ok, %TestEntity{item | value: 21}}
   end
 
