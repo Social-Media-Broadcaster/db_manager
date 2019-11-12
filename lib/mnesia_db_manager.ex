@@ -3,6 +3,7 @@ defmodule MnesiaDbManager do
 
   @behaviour DbManager
 
+  @impl true
   def init(_options) do
     case [:mnesia.create_schema([node()]), :mnesia.start()] do
       [:ok, :ok] -> :ok
@@ -12,6 +13,7 @@ defmodule MnesiaDbManager do
     end
   end
 
+  @impl true
   def create_table(table_name) do
     case create_table(table_name, attributes: [:id, :item, :updated_at]) do
       {:ok, :already_exists} -> :mnesia.wait_for_tables([table_name], 5000)
@@ -20,6 +22,7 @@ defmodule MnesiaDbManager do
     end
   end
 
+  @impl true
   def create(table_name, item) do
     id = UUID.uuid4()
     item_with_id = %{item | id: id}
@@ -32,6 +35,7 @@ defmodule MnesiaDbManager do
     end
   end
 
+  @impl true
   def update(table_name, id, item) do
     tran = fn ->
       :mnesia.delete({table_name, id})
@@ -48,6 +52,7 @@ defmodule MnesiaDbManager do
     end
   end
 
+  @impl true
   def delete(table_name, id) do
     tran = fn -> :mnesia.delete({table_name, id}) end
 
@@ -60,6 +65,7 @@ defmodule MnesiaDbManager do
     end
   end
 
+  @impl true
   def get(table_name, id) do
     filter =
       fun do
@@ -75,6 +81,7 @@ defmodule MnesiaDbManager do
     end
   end
 
+  @impl true
   def get_all(table_name) do
     filter =
       fun do
@@ -95,6 +102,7 @@ defmodule MnesiaDbManager do
     end
   end
 
+  @impl true
   def get_all(table_name, pattern) do
     filter =
       fun do
