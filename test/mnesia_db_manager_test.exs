@@ -9,6 +9,7 @@ defmodule MnesiaDbManagerTest do
   @test_entity %TestEntity{value: 15, token: "no token"}
 
   setup do
+    clear_mnesia()
     init_table()
     on_exit(fn -> clear_mnesia() end)
   end

@@ -15,7 +15,10 @@ defmodule MnesiaDbManager do
 
   @impl true
   def create_table(table_name) do
-    case create_table(table_name, attributes: [:id, :item, :updated_at]) do
+    field_names =
+      table_name |> struct() |> Map.keys() |> Enum.filter(fn key -> key != :__struct__ end)
+
+    case create_table(table_name, attributes: field_names ++ [:updated_at]) do
       {:ok, :already_exists} -> :mnesia.wait_for_tables([table_name], 5000)
       {:ok, _} -> :mnesia.add_table_index(table_name, :id)
       error -> error
@@ -23,11 +26,18 @@ defmodule MnesiaDbManager do
   end
 
   @impl true
-  def create(table_name, item) do
+  def create(_table_name, item) do
     id = UUID.uuid4()
     item_with_id = %{item | id: id}
     timestamp = DateTime.utc_now() |> DateTime.to_unix(:millisecond)
-    tran = fn -> :mnesia.write({table_name, id, item_with_id, timestamp}) end
+
+    tran = fn ->
+      item_with_id
+      |> Map.values()
+      |> List.to_tuple()
+      |> Tuple.append(timestamp)
+      |> :mnesia.write()
+    end
 
     case :mnesia.transaction(tran) do
       {_, :ok} -> {:ok, id}
@@ -36,11 +46,13 @@ defmodule MnesiaDbManager do
   end
 
   @impl true
-  def update(table_name, id, item) do
+  def update(_table_name, _id, item) do
+    [table_name, id | _] = values_list = Map.values(item)
+
     tran = fn ->
       :mnesia.delete({table_name, id})
       timestamp = DateTime.utc_now() |> DateTime.to_unix(:millisecond)
-      :mnesia.write({table_name, id, %{item | id: id}, timestamp})
+      values_list |> List.to_tuple() |> Tuple.append(timestamp) |> :mnesia.write()
     end
 
     with {:ok, _el} <- get(table_name, id),
@@ -67,15 +79,12 @@ defmodule MnesiaDbManager do
 
   @impl true
   def get(table_name, id) do
-    filter =
-      fun do
-        {table_name, id, item, _updated_at} when table_name == ^table_name and id == ^id -> item
-      end
+    tran = fn -> :mnesia.read({table_name, id}) end
 
-    tran = fn -> :mnesia.select(table_name, filter) end
-
-    case :mnesia.transaction(tran) do
-      {:atomic, [item | _]} -> {:ok, item}
+    with {:atomic, [item | _]} <- :mnesia.transaction(tran) do
+      [_type | values] = item |> Tuple.to_list()
+      {:ok, assemble_struct(table_name, values)}
+    else
       {:atomic, []} -> {:error, :not_found}
       error -> {:error, error}
     end
@@ -83,18 +92,26 @@ defmodule MnesiaDbManager do
 
   @impl true
   def get_all(table_name) do
-    filter =
-      fun do
-        {table_name, _id, item, updated_at} when table_name == ^table_name -> {item, updated_at}
-      end
+    keys_count = table_name |> struct() |> Map.values() |> Enum.count()
 
-    tran = fn -> :mnesia.select(table_name, filter) end
+    selection =
+      1..keys_count + 1
+      |> Enum.map(fn i ->
+        with 1 <- i do
+          table_name
+        else
+          i -> String.to_existing_atom("$#{i}")
+        end
+      end)
+      |> List.to_tuple()
+
+    tran = fn -> :mnesia.select(table_name, [{selection, [], [:"$$"]}]) end
 
     with {:atomic, items} <- :mnesia.transaction(tran) do
       result =
         items
         |> Enum.sort(sort_fn())
-        |> Enum.map(fn {item, _} -> item end)
+        |> Enum.map(fn item -> assemble_struct(table_name, item) end)
 
       {:ok, result}
     else
@@ -104,24 +121,39 @@ defmodule MnesiaDbManager do
 
   @impl true
   def get_all(table_name, pattern) do
-    filter =
-      fun do
-        {table_name, _id, item, updated_at} when table_name == ^table_name -> {item, updated_at}
-      end
+    keys_count = table_name |> struct() |> Map.values() |> Enum.count()
 
-    tran = fn -> :mnesia.select(table_name, filter) end
+    selection =
+      1..keys_count + 1
+      |> Enum.map(fn i ->
+        with 1 <- i do
+          table_name
+        else
+          i -> String.to_existing_atom("$#{i}")
+        end
+      end)
+      |> List.to_tuple()
+
+    tran = fn -> :mnesia.select(table_name, [{selection, [], [:"$$"]}]) end
 
     with {:atomic, items} <- :mnesia.transaction(tran) do
       result =
         items
         |> Enum.sort(sort_fn())
-        |> Enum.map(fn {item, _} -> item end)
+        |> Enum.map(fn item -> assemble_struct(table_name, item) end)
         |> Enum.filter(pattern)
 
       {:ok, result}
     else
       error -> {:error, error}
     end
+  end
+
+  defp assemble_struct(table_name, item) do
+    [_type | keys] = all_keys = Map.keys(struct(table_name))
+    values = item |> List.delete_at(Enum.count(all_keys))
+
+    struct(table_name, Enum.zip(keys, values))
   end
 
   defp create_table(table_name, options) do
@@ -132,5 +164,5 @@ defmodule MnesiaDbManager do
     end
   end
 
-  defp sort_fn, do: fn {_, updated_at_1}, {_, updated_at_2} -> updated_at_1 > updated_at_2 end
+  defp sort_fn, do: fn el_1, el_2 -> List.last(el_1) > List.last(el_2) end
 end
