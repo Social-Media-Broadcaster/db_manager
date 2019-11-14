@@ -1,5 +1,5 @@
 defmodule TestEntity do
-  defstruct [:value, :token, id: 0]
+  defstruct [:value, :token, id: 0, prop_3: 0, prop_4: 0, prop_5: 0, prop_6: 0]
 end
 
 defmodule MnesiaDbManagerTest do

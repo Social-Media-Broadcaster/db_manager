@@ -113,7 +113,7 @@ defmodule MnesiaDbManager do
       &with 1 <- &1 do
         table_name
       else
-        i -> String.to_existing_atom("$#{i}")
+        i -> :"$#{i}"
       end
     )
     |> List.to_tuple()
