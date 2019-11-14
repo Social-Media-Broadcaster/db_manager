@@ -42,7 +42,7 @@ defmodule MnesiaDbManagerTest do
   test "can update entity" do
     {:ok, id} = seed_entity()
     {:ok, item} = MnesiaDbManager.get(TestEntity, id)
-    assert MnesiaDbManager.update(TestEntity, id, %TestEntity{item | value: 21}) == :ok
+    assert MnesiaDbManager.update(%TestEntity{item | value: 21}) == :ok
     assert MnesiaDbManager.get(TestEntity, id) == {:ok, %TestEntity{item | value: 21}}
   end
 
@@ -53,18 +53,18 @@ defmodule MnesiaDbManagerTest do
 
   test "can get all by pattern" do
     result = seed_many()
-    filter = fn el -> el.value >= 17 end
-    assert MnesiaDbManager.get_all(TestEntity, filter) == {:ok, result |> Enum.filter(filter)}
+    filter = {:>=, :value, 17}
+    assert MnesiaDbManager.get_all(TestEntity, filter) == {:ok, result |> Enum.filter(&(&1.value >= 17))}
   end
 
   defp seed_many do
     {:ok, id_1} = seed_entity()
     :ok = :timer.sleep(300)
-    {:ok, id_2} = MnesiaDbManager.create(TestEntity, %TestEntity{@test_entity | value: 16})
+    {:ok, id_2} = MnesiaDbManager.create(%TestEntity{@test_entity | value: 16})
     :ok = :timer.sleep(300)
-    {:ok, id_3} = MnesiaDbManager.create(TestEntity, %TestEntity{@test_entity | value: 17})
+    {:ok, id_3} = MnesiaDbManager.create(%TestEntity{@test_entity | value: 17})
     :ok = :timer.sleep(300)
-    {:ok, id_4} = MnesiaDbManager.create(TestEntity, %TestEntity{@test_entity | value: 18})
+    {:ok, id_4} = MnesiaDbManager.create(%TestEntity{@test_entity | value: 18})
     {:ok, item_1} = MnesiaDbManager.get(TestEntity, id_1)
     {:ok, item_2} = MnesiaDbManager.get(TestEntity, id_2)
     {:ok, item_3} = MnesiaDbManager.get(TestEntity, id_3)
@@ -82,7 +82,7 @@ defmodule MnesiaDbManagerTest do
   end
 
   defp seed_entity(%TestEntity{} = entity) do
-    MnesiaDbManager.create(TestEntity, entity)
+    MnesiaDbManager.create(entity)
   end
 
   defp seed_entity do

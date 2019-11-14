@@ -1,5 +1,4 @@
 defmodule MnesiaDbManager do
-  import Ex2ms
 
   @behaviour DbManager
 
@@ -15,8 +14,7 @@ defmodule MnesiaDbManager do
 
   @impl true
   def create_table(table_name) do
-    field_names =
-      table_name |> struct() |> Map.keys() |> Enum.filter(fn key -> key != :__struct__ end)
+    field_names = table_name |> struct() |> Map.keys() |> Enum.filter(&(&1 != :__struct__))
 
     case create_table(table_name, attributes: field_names ++ [:updated_at]) do
       {:ok, :already_exists} -> :mnesia.wait_for_tables([table_name], 5000)
@@ -26,7 +24,7 @@ defmodule MnesiaDbManager do
   end
 
   @impl true
-  def create(_table_name, item) do
+  def create(item) do
     id = UUID.uuid4()
     item_with_id = %{item | id: id}
     timestamp = DateTime.utc_now() |> DateTime.to_unix(:millisecond)
@@ -46,7 +44,7 @@ defmodule MnesiaDbManager do
   end
 
   @impl true
-  def update(_table_name, _id, item) do
+  def update(item) do
     [table_name, id | _] = values_list = Map.values(item)
 
     tran = fn ->
@@ -91,21 +89,12 @@ defmodule MnesiaDbManager do
   end
 
   @impl true
-  def get_all(table_name) do
-    keys_count = table_name |> struct() |> Map.values() |> Enum.count()
+  def get_all(table_name, pattern \\ []) do
+    keys = table_name |> struct() |> Map.keys()
+    selection = keys |> Enum.count() |> get_selection(table_name)
+    guard = build(pattern, keys)
 
-    selection =
-      1..keys_count + 1
-      |> Enum.map(fn i ->
-        with 1 <- i do
-          table_name
-        else
-          i -> String.to_existing_atom("$#{i}")
-        end
-      end)
-      |> List.to_tuple()
-
-    tran = fn -> :mnesia.select(table_name, [{selection, [], [:"$$"]}]) end
+    tran = fn -> :mnesia.select(table_name, [{selection, guard, [:"$$"]}]) end
 
     with {:atomic, items} <- :mnesia.transaction(tran) do
       result =
@@ -119,34 +108,16 @@ defmodule MnesiaDbManager do
     end
   end
 
-  @impl true
-  def get_all(table_name, pattern) do
-    keys_count = table_name |> struct() |> Map.values() |> Enum.count()
-
-    selection =
-      1..keys_count + 1
-      |> Enum.map(fn i ->
-        with 1 <- i do
-          table_name
-        else
-          i -> String.to_existing_atom("$#{i}")
-        end
-      end)
-      |> List.to_tuple()
-
-    tran = fn -> :mnesia.select(table_name, [{selection, [], [:"$$"]}]) end
-
-    with {:atomic, items} <- :mnesia.transaction(tran) do
-      result =
-        items
-        |> Enum.sort(sort_fn())
-        |> Enum.map(fn item -> assemble_struct(table_name, item) end)
-        |> Enum.filter(pattern)
-
-      {:ok, result}
-    else
-      error -> {:error, error}
-    end
+  defp get_selection(keys_count, table_name) do
+    1..(keys_count + 1)
+    |> Enum.map(fn i ->
+      with 1 <- i do
+        table_name
+      else
+        i -> String.to_existing_atom("$#{i}")
+      end
+    end)
+    |> List.to_tuple()
   end
 
   defp assemble_struct(table_name, item) do
@@ -165,4 +136,45 @@ defmodule MnesiaDbManager do
   end
 
   defp sort_fn, do: fn el_1, el_2 -> List.last(el_1) > List.last(el_2) end
+
+  # taken from https://github.com/sheharyarn/memento/blob/master/lib/memento/query/spec.ex as a temporary solution
+
+  defp build(guards, keys_list) when is_list(guards) do
+    translate(keys_list, guards)
+  end
+
+  defp build(guard, keys_list) when is_tuple(guard) do
+    build([guard], keys_list)
+  end
+
+  defp rewrite_guard(:or), do: :orelse
+  defp rewrite_guard(:and), do: :andalso
+  defp rewrite_guard(:<=), do: :"=<"
+  defp rewrite_guard(:!=), do: :"/="
+  defp rewrite_guard(:===), do: :"=:="
+  defp rewrite_guard(:!==), do: :"=/="
+  defp rewrite_guard(term), do: term
+
+  defp translate(keys_list, list) when is_list(list) do
+    Enum.map(list, &translate(keys_list, &1))
+  end
+
+  defp translate(keys_list, atom) when is_atom(atom) do
+    case Enum.find_index(keys_list, &(&1 == atom)) do
+      nil -> atom
+      value -> String.to_existing_atom("$#{value + 1}")
+    end
+  end
+
+  defp translate(map, {operation, arg1, arg2}) do
+    {
+      rewrite_guard(operation),
+      translate(map, arg1),
+      translate(map, arg2)
+    }
+  end
+
+  defp translate(_map, term) do
+    term
+  end
 end
