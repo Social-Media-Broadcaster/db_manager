@@ -1,5 +1,4 @@
 defmodule MnesiaDbManager do
-
   @behaviour DbManager
 
   @impl true
@@ -100,7 +99,7 @@ defmodule MnesiaDbManager do
       result =
         items
         |> Enum.sort(sort_fn())
-        |> Enum.map(fn item -> assemble_struct(table_name, item) end)
+        |> Enum.map(&assemble_struct(table_name, &1))
 
       {:ok, result}
     else
@@ -110,13 +109,13 @@ defmodule MnesiaDbManager do
 
   defp get_selection(keys_count, table_name) do
     1..(keys_count + 1)
-    |> Enum.map(fn i ->
-      with 1 <- i do
+    |> Enum.map(
+      &with 1 <- &1 do
         table_name
       else
         i -> String.to_existing_atom("$#{i}")
       end
-    end)
+    )
     |> List.to_tuple()
   end
 
@@ -135,7 +134,7 @@ defmodule MnesiaDbManager do
     end
   end
 
-  defp sort_fn, do: fn el_1, el_2 -> List.last(el_1) > List.last(el_2) end
+  defp sort_fn, do: &(List.last(&1) > List.last(&2))
 
   # taken from https://github.com/sheharyarn/memento/blob/master/lib/memento/query/spec.ex as a temporary solution
 
@@ -162,7 +161,7 @@ defmodule MnesiaDbManager do
   defp translate(keys_list, atom) when is_atom(atom) do
     case Enum.find_index(keys_list, &(&1 == atom)) do
       nil -> atom
-      value -> String.to_existing_atom("$#{value + 1}")
+      value -> :"$#{value + 1}"
     end
   end
 
