@@ -1,5 +1,6 @@
 defmodule DbManager.EntityService.Mnesia do
   alias DbManager.EntityService
+  alias DbManager.EntityService.Utils
 
   @behaviour EntityService
   @behaviour EntityService.Initializer
@@ -92,11 +93,7 @@ defmodule DbManager.EntityService.Mnesia do
 
   @impl true
   def get_all(table_name, pattern \\ []) do
-    keys = table_name |> struct() |> Map.keys()
-    selection = keys |> Enum.count() |> get_selection(table_name)
-    guard = build(pattern, keys)
-
-    tran = fn -> :mnesia.select(table_name, [{selection, guard, [:"$$"]}]) end
+    tran = fn -> :mnesia.select(table_name, build_filter(table_name, pattern)) end
 
     with {:atomic, items} <- :mnesia.transaction(tran) do
       result =
@@ -108,18 +105,6 @@ defmodule DbManager.EntityService.Mnesia do
     else
       error -> {:error, error}
     end
-  end
-
-  defp get_selection(keys_count, table_name) do
-    1..(keys_count + 1)
-    |> Enum.map(
-      &with 1 <- &1 do
-        table_name
-      else
-        i -> :"$#{i}"
-      end
-    )
-    |> List.to_tuple()
   end
 
   defp assemble_struct(table_name, item) do
@@ -139,44 +124,25 @@ defmodule DbManager.EntityService.Mnesia do
 
   defp sort_fn, do: &(List.last(&1) > List.last(&2))
 
-  # taken from https://github.com/sheharyarn/memento/blob/master/lib/memento/query/spec.ex as a temporary solution
-
-  defp build(guards, keys_list) when is_list(guards) do
-    translate(keys_list, guards)
+  defp build_filter(table_name, pattern) do
+    keys = table_name |> struct() |> Map.keys()
+    selection = keys |> get_selection(table_name)
+    guard = Utils.build(pattern, keys)
+    [{selection, guard, [:"$$"]}]
   end
 
-  defp build(guard, keys_list) when is_tuple(guard) do
-    build([guard], keys_list)
+  defp get_selection(keys, table_name) do
+    keys_count = keys |> Enum.count()
+
+    1..(keys_count + 1)
+    |> Enum.map(
+      &with 1 <- &1 do
+        table_name
+      else
+        i -> :"$#{i}"
+      end
+    )
+    |> List.to_tuple()
   end
 
-  defp rewrite_guard(:or), do: :orelse
-  defp rewrite_guard(:and), do: :andalso
-  defp rewrite_guard(:<=), do: :"=<"
-  defp rewrite_guard(:!=), do: :"/="
-  defp rewrite_guard(:===), do: :"=:="
-  defp rewrite_guard(:!==), do: :"=/="
-  defp rewrite_guard(term), do: term
-
-  defp translate(keys_list, list) when is_list(list) do
-    Enum.map(list, &translate(keys_list, &1))
-  end
-
-  defp translate(keys_list, atom) when is_atom(atom) do
-    case Enum.find_index(keys_list, &(&1 == atom)) do
-      nil -> atom
-      value -> :"$#{value + 1}"
-    end
-  end
-
-  defp translate(map, {operation, arg1, arg2}) do
-    {
-      rewrite_guard(operation),
-      translate(map, arg1),
-      translate(map, arg2)
-    }
-  end
-
-  defp translate(_map, term) do
-    term
-  end
 end
