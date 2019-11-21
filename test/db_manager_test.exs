@@ -11,7 +11,10 @@ defmodule DbManagerTest do
   setup do
     clear_mnesia()
     init_table()
-    on_exit(fn -> clear_mnesia() end)
+
+    on_exit(fn ->
+      clear_mnesia()
+    end)
   end
 
   test "can create entities" do
@@ -45,7 +48,9 @@ defmodule DbManagerTest do
   test "can get all by pattern" do
     result = seed_many()
     filter = {:>=, :value, 17}
-    assert DbManager.get_all(TestEntity, filter) == {:ok, result |> Enum.filter(&(&1.value >= 17))}
+
+    assert DbManager.get_all(TestEntity, filter) ==
+             {:ok, result |> Enum.filter(&(&1.value >= 17))}
   end
 
   defp seed_many do
