@@ -1,5 +1,8 @@
-defmodule MnesiaDbManager do
-  @behaviour DbManager
+defmodule DbManager.EntityService.Mnesia do
+  alias DbManager.EntityService
+
+  @behaviour EntityService
+  @behaviour EntityService.Initializer
 
   @impl true
   def init(_options) do
