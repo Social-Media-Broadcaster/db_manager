@@ -4,7 +4,7 @@ defmodule DbManager.Server do
 
   # Client
   def start_link(_opts) do
-    db_manager = Application.get_env(:crud_service, :db_manager, Mnesia)
+    db_manager = Application.get_env(:db_manager, :db_manager, Mnesia)
     GenServer.start_link(__MODULE__, db_manager, name: __MODULE__)
   end
 
@@ -42,7 +42,8 @@ defmodule DbManager.Server do
   # Server
   @impl true
   def init(db_manager) do
-    db_manager.init(nil)
+    opts = Application.get_env(:db_manager, :options, nil)
+    db_manager.init(opts)
     {:ok, db_manager}
   end
 
