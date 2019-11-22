@@ -83,7 +83,7 @@ defmodule DbManager.EntityService.Ets do
 
   defp assemble_struct(item, table_name) when is_list(item) do
     [_type | keys] = table_name |> struct() |> Map.keys()
-    values = item |> List.delete_at(Enum.count(keys))
+    values = item |> List.delete_at(0) |> List.delete_at(Enum.count(keys))
     struct(table_name, Enum.zip(keys, values))
   end
 
@@ -95,21 +95,22 @@ defmodule DbManager.EntityService.Ets do
 
   defp disassemble_struct(item, id) do
     timestamp = DateTime.utc_now() |> DateTime.to_unix(:millisecond)
+    [table | values] = Map.values(item)
 
-    [id] ++ Map.values(item) ++ [timestamp]
+    [table, id] ++ values ++ [timestamp]
   end
 
   defp build_filter(table_name, pattern) do
     keys = table_name |> struct() |> Map.keys()
     selection = get_selection(keys)
-    guard = Utils.build(pattern, keys |> List.delete_at(0))
+    guard = Utils.build(pattern, keys)
     [{selection, guard, [:"$$"]}]
   end
 
   defp get_selection(keys) do
     keys_count = keys |> Enum.count()
 
-    1..(keys_count)
+    1..(keys_count + 1)
     |> Enum.map(&:"$#{&1}")
     |> List.to_tuple()
   end
