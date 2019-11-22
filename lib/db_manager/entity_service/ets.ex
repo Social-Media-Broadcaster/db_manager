@@ -19,7 +19,7 @@ defmodule DbManager.EntityService.Ets do
   def create(item) do
     id = UUID.uuid4()
     item_with_id = %{item | id: id}
-    [table | result] = disassemble_struct(item_with_id)
+    [table | result] = disassemble_struct(item_with_id, id)
 
     if Ets.insert_new(table, result |> List.to_tuple()) do
       {:ok, id}
@@ -30,7 +30,7 @@ defmodule DbManager.EntityService.Ets do
 
   @impl true
   def update(item) do
-    [table | result] = disassemble_struct(item)
+    [table | result] = disassemble_struct(item, item.id)
 
     case Ets.lookup(table, item.id) do
       [] ->
@@ -89,14 +89,14 @@ defmodule DbManager.EntityService.Ets do
 
   defp assemble_struct(item, table_name) when is_tuple(item) do
     [_type | keys] = table_name |> struct() |> Map.keys()
-    values = item |> Tuple.to_list() |> List.delete_at(Enum.count(keys))
+    values = item |> Tuple.to_list() |> List.delete_at(0) |> List.delete_at(Enum.count(keys))
     struct(table_name, Enum.zip(keys, values))
   end
 
-  defp disassemble_struct(item) do
+  defp disassemble_struct(item, id) do
     timestamp = DateTime.utc_now() |> DateTime.to_unix(:millisecond)
 
-    Map.values(item) ++ [timestamp]
+    [id] ++ Map.values(item) ++ [timestamp]
   end
 
   defp build_filter(table_name, pattern) do
