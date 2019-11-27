@@ -11,8 +11,13 @@ defmodule DbManager.EntityService.Ets do
 
   @impl true
   def create_table(table) do
-    Ets.new(table, [:set, :protected, :named_table])
-    :ok
+    try do
+      Ets.new(table, [:set, :protected, :named_table])
+      :ok
+    rescue
+      ArgumentError -> :ok
+      error -> {:error, error}
+    end
   end
 
   @impl true
