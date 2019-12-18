@@ -9,11 +9,13 @@ defmodule DbManagerTest do
   @test_entity %TestEntity{value: 15, token: "no token"}
 
   setup do
-    clear_mnesia()
+    # clear_mnesia()
     init_table()
 
     on_exit(fn ->
-      clear_mnesia()
+      {:ok, items} = DbManager.get_all(TestEntity)
+      items |> Enum.each(&DbManager.delete(TestEntity, &1.id))
+      # clear_mnesia()
     end)
   end
 
@@ -43,6 +45,14 @@ defmodule DbManagerTest do
   test "can get all entities" do
     result = seed_many()
     assert DbManager.get_all(TestEntity) == {:ok, result}
+  end
+
+  test "can find element by pattern" do
+    result = seed_many()
+    filter = {:===, :value, 17}
+
+    assert DbManager.first(TestEntity, filter) ==
+             {:ok, result |> Enum.find(&(&1.value === 17))}
   end
 
   test "can get all by pattern" do

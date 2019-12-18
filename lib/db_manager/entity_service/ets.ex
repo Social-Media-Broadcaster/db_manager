@@ -73,6 +73,21 @@ defmodule DbManager.EntityService.Ets do
   end
 
   @impl true
+  def first(table, filter) do
+    raw_result = Ets.select(table, build_filter(table, filter))
+
+    try do
+      [first | _rest] =
+        raw_result
+        |> Enum.map(&assemble_struct(&1, table))
+
+      {:ok, first}
+    rescue
+      _ -> {:error, :not_found}
+    end
+  end
+
+  @impl true
   def get(table, id) do
     case Ets.lookup(table, id) do
       [] ->

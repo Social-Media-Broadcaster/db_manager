@@ -107,6 +107,27 @@ defmodule DbManager.EntityService.Mnesia do
     end
   end
 
+  @impl true
+  def first(table_name, filter) do
+    tran = fn -> :mnesia.select(table_name, build_filter(table_name, filter)) end
+
+    with {:atomic, items} <- :mnesia.transaction(tran) do
+      try do
+        result =
+          items
+          |> Enum.map(&assemble_struct(table_name, &1))
+
+        [first | _rest] = result
+
+        {:ok, first}
+      rescue
+        _ -> {:error, :not_found}
+      end
+    else
+      error -> {:error, error}
+    end
+  end
+
   defp assemble_struct(table_name, item) do
     [_type | keys] = all_keys = Map.keys(struct(table_name))
     values = item |> List.delete_at(Enum.count(all_keys))
@@ -144,5 +165,4 @@ defmodule DbManager.EntityService.Mnesia do
     )
     |> List.to_tuple()
   end
-
 end

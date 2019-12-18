@@ -4,6 +4,8 @@ defmodule DbManager.EntityService do
               {:ok, id :: String.t()} | {:error, reason :: term}
   @callback update(tem :: %{id: String.t()}) :: :ok | {:error, reason :: term}
   @callback delete(table_name :: atom, id :: String.t()) :: :ok | {:error, reason :: term}
+  @callback first(table_name :: atom, filter :: {atom, atom, term} | [{atom, atom, term}]) ::
+              {:ok, %{id: String.t()}} | {:error, reason :: term}
   @callback get(table_name :: atom, id :: String.t()) ::
               {:ok, %{id: String.t()}} | {:error, reason :: term}
   @callback get_all(table_name :: atom) :: {:ok, list(%{id: number})} | {:error, reason :: term}
