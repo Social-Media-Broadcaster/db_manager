@@ -1,11 +1,11 @@
 defmodule DbManager.Server do
-  alias DbManager.EntityService.Mnesia
+  alias DbManager.EntityService.Ets
   use GenServer
   require Logger
 
   # Client
   def start_link(_opts) do
-    entity_service = Application.get_env(:db_manager, :entity_service, Mnesia)
+    entity_service = Application.get_env(:db_manager, :entity_service, Ets)
     GenServer.start_link(__MODULE__, entity_service, name: __MODULE__)
   end
 
@@ -35,6 +35,12 @@ defmodule DbManager.Server do
     GenServer.call(__MODULE__, {:get_all, table, filter})
   end
 
+  @spec first(atom, {atom, atom, term} | [{atom, atom, term}]) ::
+          {:ok, %{id: String.t()}} | {:error, term}
+  def first(table, filter) do
+    GenServer.call(__MODULE__, {:first, table, filter})
+  end
+
   @spec get(atom, String.t()) :: {:ok, %{id: String.t()}} | {:error, term}
   def get(table, id) do
     GenServer.call(__MODULE__, {:get, table, id})
@@ -45,8 +51,19 @@ defmodule DbManager.Server do
   def init(entity_service) do
     opts = Application.get_env(:db_manager, :options, nil)
     entity_service.init(opts)
-    Logger.debug("#{__MODULE__} initialized with #{inspect(entity_service)} entity service with options: #{inspect(opts)}")
+
+    Logger.debug(
+      "#{__MODULE__} initialized with #{inspect(entity_service)} entity service with options: #{
+        inspect(opts)
+      }"
+    )
+
     {:ok, entity_service}
+  end
+
+  @impl true
+  def handle_call({:first, table, filter}, _from, entity_service) do
+    {:reply, entity_service.first(table, filter), entity_service}
   end
 
   @impl true

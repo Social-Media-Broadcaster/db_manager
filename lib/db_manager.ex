@@ -5,6 +5,8 @@ defmodule DbManager do
   @impl true
   defdelegate create_table(table), to: Server
   @impl true
+  defdelegate first(table, filter), to: Server
+  @impl true
   defdelegate get(table, id), to: Server
   @impl true
   defdelegate get_all(table, filter \\ []), to: Server
